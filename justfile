@@ -1,2 +1,4 @@
-bf:
-    brain-surgeon
+lint:
+    brain-surgeon lint
+fmt:
+    brain-surgeon fmt

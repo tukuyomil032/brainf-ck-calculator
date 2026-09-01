@@ -6,10 +6,16 @@ usage() {
     echo 'usage: brainf-ck-calculator "NUMBER OPERATOR NUMBER"' >&2
 }
 
-if [ "$#" -ne 1 ]; then
+if [ "$#" -eq 0 ]; then
     usage
     exit 2
 fi
+
+EXPRESSION=$1
+shift
+for argument in "$@"; do
+    EXPRESSION="$EXPRESSION $argument"
+done
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
@@ -33,7 +39,7 @@ else
     exit 127
 fi
 
-payload=$(awk -v expression="$1" '
+payload=$(awk -v expression="$EXPRESSION" '
 BEGIN {
     gsub(/[ \t]/, "", expression)
 

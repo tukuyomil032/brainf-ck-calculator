@@ -28,6 +28,18 @@ assert_success() {
     fi
 }
 
+assert_success_unquoted() {
+    left=$1
+    operator=$2
+    right=$3
+    expected=$4
+    actual=$(BF_RUNTIME="$BF_RUNTIME" "$CLI" "$left" "$operator" "$right")
+    if [ "$actual" != "$expected" ]; then
+        echo "FAIL: $left $operator $right -> $actual (expected $expected)" >&2
+        exit 1
+    fi
+}
+
 assert_error() {
     expression=$1
     expected_status=$2
@@ -57,9 +69,13 @@ assert_error() {
 }
 
 assert_success "12 + 3" "15"
+assert_success_unquoted "12" "+" "3" "15"
 assert_success "12-3" "9"
+assert_success_unquoted "12" "-" "3" "9"
 assert_success "12 * 3" "36"
+assert_success_unquoted "12" "*" "3" "36"
 assert_success "10 / 3" "3"
+assert_success_unquoted "10" "/" "3" "3"
 assert_success "0 + 0" "0"
 assert_success "255 - 0" "255"
 assert_success "100 + 155" "255"
@@ -80,20 +96,6 @@ error_file=$(mktemp "${TMPDIR:-/tmp}/brainf-ck-calculator-test.XXXXXX")
 trap 'rm -f "$error_file"' EXIT HUP INT TERM
 if BF_RUNTIME="$BF_RUNTIME" "$CLI" > /dev/null 2>"$error_file"; then
     echo "FAIL: missing argument unexpectedly succeeded" >&2
-    exit 1
-else
-    actual_status=$?
-fi
-actual_message=$(awk '{ print }' "$error_file")
-rm -f "$error_file"
-trap - EXIT HUP INT TERM
-[ "$actual_status" -eq 2 ]
-[ "$actual_message" = "usage: brainf-ck-calculator \"NUMBER OPERATOR NUMBER\"" ]
-
-error_file=$(mktemp "${TMPDIR:-/tmp}/brainf-ck-calculator-test.XXXXXX")
-trap 'rm -f "$error_file"' EXIT HUP INT TERM
-if BF_RUNTIME="$BF_RUNTIME" "$CLI" "1+1" "2+2" > /dev/null 2>"$error_file"; then
-    echo "FAIL: extra arguments unexpectedly succeeded" >&2
     exit 1
 else
     actual_status=$?

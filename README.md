@@ -12,18 +12,20 @@ The bundled runtime wrapper normalizes the validated expression into the line-or
 ## Usage
 
 ```sh
-./bin/brainf-ck-calculator "12 + 3"
+./bin/brainf-ck-calculator 12 + 3
 # 15
 
-./bin/brainf-ck-calculator "12-3"
+./bin/brainf-ck-calculator 12-3
 # 9
 
-./bin/brainf-ck-calculator "12 * 3"
+./bin/brainf-ck-calculator 12 \* 3
 # 36
 
-./bin/brainf-ck-calculator "10 / 3"
+./bin/brainf-ck-calculator 10 / 3
 # 3
 ```
+
+The wrapper also accepts a spaced expression without surrounding quotes by joining its arguments. The `*` operator must be escaped because most shells expand it as a filename wildcard.
 
 To use a runtime at another path:
 

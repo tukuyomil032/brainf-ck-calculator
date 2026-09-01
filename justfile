@@ -1,4 +1,4 @@
 lint:
-    brain-surgeon lint
+    brain-surgeon lint *.bf
 fmt:
-    brain-surgeon fmt
+    brain-surgeon fmt *.bf

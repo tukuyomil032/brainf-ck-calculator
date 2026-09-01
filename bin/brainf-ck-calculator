@@ -1,0 +1,167 @@
+#!/bin/sh
+
+set -eu
+
+usage() {
+    echo 'usage: brainf-ck-calculator "NUMBER OPERATOR NUMBER"' >&2
+}
+
+if [ "$#" -ne 1 ]; then
+    usage
+    exit 2
+fi
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+PROGRAM="$ROOT_DIR/calculator.bf"
+
+if [ ! -f "$PROGRAM" ]; then
+    echo "ERROR: calculator program not found: $PROGRAM" >&2
+    exit 1
+fi
+
+BF_RUNTIME=${BF_RUNTIME:-brainfuck}
+if case "$BF_RUNTIME" in
+    */*) [ -x "$BF_RUNTIME" ] ;;
+    *) command -v "$BF_RUNTIME" >/dev/null 2>&1 ;;
+esac
+then
+    :
+else
+    echo "ERROR: Brainfuck runtime not found: $BF_RUNTIME" >&2
+    echo "Set BF_RUNTIME to the runtime executable path." >&2
+    exit 127
+fi
+
+payload=$(awk -v expression="$1" '
+BEGIN {
+    gsub(/[ \t]/, "", expression)
+
+    if (expression !~ /^[0-9]+[+*\/-][0-9]+$/) {
+        print "ERR:INVALID_INPUT"
+        exit
+    }
+
+    operator_position = 0
+    for (i = 1; i <= length(expression); i++) {
+        character = substr(expression, i, 1)
+        if (character ~ /[+*\/-]/) {
+            operator_position = i
+            operator = character
+            break
+        }
+    }
+
+    left = substr(expression, 1, operator_position - 1) + 0
+    right = substr(expression, operator_position + 1) + 0
+
+    if (left > 255 || right > 255) {
+        print "ERR:OUT_OF_RANGE"
+        exit
+    }
+
+    if (operator == "+") {
+        operation = 1
+        if (left + right > 255) {
+            print "ERR:OUT_OF_RANGE"
+            exit
+        }
+    } else if (operator == "-") {
+        operation = 2
+        if (left < right) {
+            print "ERR:NEGATIVE_RESULT"
+            exit
+        }
+    } else if (operator == "*") {
+        operation = 3
+        if (left * right > 255) {
+            print "ERR:OUT_OF_RANGE"
+            exit
+        }
+    } else {
+        operation = 4
+        if (right == 0) {
+            print "ERR:DIV_ZERO"
+            exit
+        }
+    }
+
+    printf "%d|%d|%d\n", left, operation, right
+}
+')
+
+case "$payload" in
+    ERR:INVALID_INPUT)
+        echo "ERROR: invalid expression" >&2
+        exit 2
+        ;;
+    ERR:OUT_OF_RANGE)
+        echo "ERROR: operand or result is out of range (0-255)" >&2
+        exit 2
+        ;;
+    ERR:NEGATIVE_RESULT)
+        echo "ERROR: result would be negative" >&2
+        exit 2
+        ;;
+    ERR:DIV_ZERO)
+        echo "ERROR: division by zero" >&2
+        exit 2
+        ;;
+esac
+
+IFS='|' read -r LEFT OPERATION RIGHT <<EOF
+$payload
+EOF
+
+OUTPUT_FILE=$(mktemp "${TMPDIR:-/tmp}/brainf-ck-calculator.XXXXXX")
+trap 'rm -f "$OUTPUT_FILE"' EXIT HUP INT TERM
+
+if awk -v left="$LEFT" -v operation="$OPERATION" -v right="$RIGHT" '
+BEGIN {
+    for (i = 0; i < left; i++) print 1
+    print 0
+    for (i = 0; i < operation; i++) print 1
+    print 0
+    for (i = 0; i < right; i++) print 1
+    print 0
+}
+' | "$BF_RUNTIME" "$PROGRAM" >"$OUTPUT_FILE"; then
+    :
+else
+    runtime_status=$?
+    awk '{ print }' "$OUTPUT_FILE" >&2
+    exit "$runtime_status"
+fi
+
+if ! PROTOCOL=$(awk 'NR == 1 { line = $0; next } { exit 1 } END { if (NR == 0) exit 1; print line }' "$OUTPUT_FILE"); then
+    echo "ERROR: invalid protocol from Brainfuck runtime" >&2
+    awk '{ print }' "$OUTPUT_FILE" >&2
+    exit 1
+fi
+
+case "$PROTOCOL" in
+    OK:[0-9]|OK:[0-9][0-9]|OK:[0-9][0-9][0-9])
+        printf '%s\n' "${PROTOCOL#OK:}"
+        ;;
+    ERR:INVALID_INPUT)
+        echo "ERROR: invalid expression" >&2
+        exit 2
+        ;;
+    ERR:OUT_OF_RANGE)
+        echo "ERROR: operand or result is out of range (0-255)" >&2
+        exit 2
+        ;;
+    ERR:NEGATIVE_RESULT)
+        echo "ERROR: result would be negative" >&2
+        exit 2
+        ;;
+    ERR:DIV_ZERO)
+        echo "ERROR: division by zero" >&2
+        exit 2
+        ;;
+    *)
+        echo "ERROR: invalid protocol from Brainfuck runtime" >&2
+        awk '{ print }' "$OUTPUT_FILE" >&2
+        exit 1
+        ;;
+esac

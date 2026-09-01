@@ -1,9 +1,5 @@
 pre-commit:
   parallel: true
   commands:
-    lint:
-      run: brain-surgeon lint
-      glob: "*.bf"
     fmt:
-      run: brain-surgeon fmt
-      glob: "*.bf"
+      run: brain-surgeon fmt *.bf
